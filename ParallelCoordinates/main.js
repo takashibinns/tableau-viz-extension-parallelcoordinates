@@ -57,23 +57,21 @@
   // Gets each page of data in the summary data and returns a list of rows of data
   // associated with field names.
   async function getSummaryDataTable (worksheet) {
-    let rows = [];
-
+  
     // Fetch the summary data using the DataTableReader
-    const dataTableReader = await worksheet.getSummaryDataReaderAsync(
-      undefined,
-      { ignoreSelection: true }
-    );
-    for (
-      let currentPage = 0;
-      currentPage < dataTableReader.pageCount;
-      currentPage++
-    ) {
+    let rows = [];
+    const dataTableReader = await worksheet.getSummaryDataReaderAsync(undefined,{ ignoreSelection: true } );
+
+    //  Loop through each page of results
+    for (let currentPage = 0; currentPage < dataTableReader.pageCount; currentPage++) {
       const dataTablePage = await dataTableReader.getPageAsync(currentPage);
       rows = rows.concat(convertToListOfNamedRows(dataTablePage));
     }
+
+    //  Release the data reader
     await dataTableReader.releaseAsync();
 
+    //  Return the array of data
     return rows;
   }
 
@@ -81,15 +79,40 @@
   // to fields that the user has placed on the encoding's shelf.
   // Only encodings that have fields dropped on them will be part of the encodingMap.
   async function getEncodingMap (worksheet) {
+
+    //  Define whether each encoding should be an array or just a single object
+    const encodingIsArray = {
+      dimensions: false,
+      measures: true,
+      color: false,
+      detail: true,
+      tooltip: true
+    }
+
+    //  Get the spec from Tableau API
     const visualSpec = await worksheet.getVisualSpecificationAsync();
 
+    //  Create an empty encoding map
     const encodingMap = {};
 
+    //  If no encodings, return the empty map
     if (visualSpec.activeMarksSpecificationIndex < 0) return encodingMap;
 
-    const marksCard =
-      visualSpec.marksSpecifications[visualSpec.activeMarksSpecificationIndex];
-    for (const encoding of marksCard.encodings) { encodingMap[encoding.id] = encoding.field; }
+    //  All encodings should be on the marks card
+    const marksCard = visualSpec.marksSpecifications[visualSpec.activeMarksSpecificationIndex];
+
+    //  Loop through each encoding
+    for (const encoding of marksCard.encodings) { 
+      //  Are we tracking this encoding already?
+      if (encodingMap[encoding.id]){
+        //  Yes, add to array
+        encodingMap[encoding.id].push(encoding);
+      } else {
+        //  No, create the array for this encoding (or drop in the single object)
+        encodingMap[encoding.id] = encodingIsArray[encoding.id] ? [encoding] : encoding;
+      }
+      //encodingMap[encoding.id] = encoding.field; 
+    }
 
     return encodingMap;
   }
@@ -138,32 +161,28 @@
       .attr("class", "tooltip")
       .style("position","fixed")
       .style("opacity", 0)
+
     //  Populate the SVG
     ParallelCoordinates(data, encodings, svg, tip, sizing);
   }
   
   //  Draw a Parallel Coordinates chart within the SVG
-  //  Source: https://d3-graph-gallery.com/graph/parallel_custom.html
   function ParallelCoordinates(data, encodings, svg, tip, sizing){
+    
+    // Extract the list of measures, we will need a y-axis for each one
+    const measureNames = encodings.measures.map( encoding => { return encoding.field.name;});
+    let measures = Object.keys(data[0]).filter(function(d) { return measureNames.includes(d);})
 
-    //  Get the name of the dimension & color
-    const dimensionName = encodings.dimensions.name;
+    //  Figure out the color encodings
     const colorName = encodings.color?.name;
-
     //  Start from a predefined color palette (Tableau Classic 10)
     const colorPalette = ['#17becf','#bcbd22','#7f7f7f','#e377c2','#8c564b','#9467bd','#d62728','#2ca02c','#ff7f0e','#1f77b4'];
-
     //  Define a function that strips out special characters, so that we can use the color value as a classname
     const colorValueClassname = (colorValue) => {
       return colorValue.replace(/[^a-zA-Z0-9]/g,'_');
     }
-
-    // Extract the list of dimensions we want to keep in the plot. Here I keep all except the column called Species
-    let measures = Object.keys(data[0]).filter(function(d) { return d != dimensionName && d!= colorName})
-
     //  Function to remove duplicates from an array
     const removeDuplicates = (data)  => { return [...new Set(data)]};
-
     //  Function to generate a color, based off a palette
     const getColor = (domain) => {
 
@@ -209,7 +228,6 @@
         return newColors;
       }
     }
-
     //  Get a list of all color values
     let colorDomain = [];
     if (colorName) {
@@ -234,8 +252,6 @@
       .range([0, sizing.width])
       .padding(1)
       .domain(measures);
-
-    
 
     /**********************/
     /*  Highlight lines   */
