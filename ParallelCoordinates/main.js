@@ -174,7 +174,7 @@
     let measures = Object.keys(data[0]).filter(function(d) { return measureNames.includes(d);})
 
     //  Figure out the color encodings
-    const colorName = encodings.color?.name;
+    const colorName = encodings.color?.field?.name;
     //  Start from a predefined color palette (Tableau Classic 10)
     const colorPalette = ['#17becf','#bcbd22','#7f7f7f','#e377c2','#8c564b','#9467bd','#d62728','#2ca02c','#ff7f0e','#1f77b4'];
     //  Define a function that strips out special characters, so that we can use the color value as a classname
